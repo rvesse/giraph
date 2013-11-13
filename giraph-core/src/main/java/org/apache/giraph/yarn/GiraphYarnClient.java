@@ -24,6 +24,7 @@ import com.google.common.collect.Maps;
 
 import com.google.common.collect.Sets;
 import java.util.Set;
+
 import org.apache.giraph.conf.GiraphConfiguration;
 import org.apache.giraph.conf.GiraphConstants;
 import org.apache.hadoop.conf.Configuration;
@@ -457,7 +458,7 @@ public class GiraphYarnClient {
   private void checkJobLocalZooKeeperSupported() {
     final boolean isZkExternal = giraphConf.isZookeeperExternal();
     final String checkZkList = giraphConf.getZookeeperList();
-    if (!isZkExternal || checkZkList.isEmpty()) {
+    if (!isZkExternal || checkZkList == null || checkZkList.isEmpty()) {
       throw new IllegalArgumentException("Giraph on YARN does not currently" +
           "support Giraph-managed ZK instances: use a standalone ZooKeeper.");
     }
