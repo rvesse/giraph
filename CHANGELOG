@@ -1,8 +1,13 @@
 Giraph Change Log
 
 Release 1.1.0 - unreleased
+  GIRAPH-798: Upgrade Giraph to Java7 and fix all dependencies (aching)
+
+  GIRAPH-797: If the vertex input data path is incorrect Giraph job hangs indefinitely 
+  until killed by JobTracker for exceeding timeout (jaeyu via claudio)
+
   GIRAPH-793: Create necessary documentation for Giraph-Gora integration 
-  (enato2099 via claudio)
+  (renato2099 via claudio)
 
   GIRAPH-760: Create EdgeOutputFormat to Apache Gora (renato2099 via claudio)
 
