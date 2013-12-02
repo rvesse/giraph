@@ -69,10 +69,10 @@ public class TriangleFindingComputation extends BasicComputation<LongWritable,
       vertex.setValue(new LongArrayArrayListWritable());
 
       // Send initial message to all reachable vertices
-      LOG.info("Sending initial message from vertex " + vertex.getId());
+      LOG.debug("Sending initial message from vertex " + vertex.getId());
       this.appendAndSend(vertex, new LongWritable[0]);
     } else {
-      LOG.info("Processing messages at vertex " + vertex.getId() +
+      LOG.debug("Processing messages at vertex " + vertex.getId() +
         " in superstep " + getSuperstep());
       Iterator<LongArrayWritable> iter = messages.iterator();
       while (iter.hasNext()) {
@@ -81,12 +81,12 @@ public class TriangleFindingComputation extends BasicComputation<LongWritable,
 
         // Discard messages which contain duplicates
         if (this.hasDuplicate(data)) {
-          LOG.info("Discarded message " + toString(data) +
+          LOG.trace("Discarded message " + toString(data) +
             " which contained duplicate vertices");
           continue;
         }
 
-        LOG.debug("Processing message " + toString(data) +
+        LOG.trace("Processing message " + toString(data) +
           " at vertex " + vertex.getId());
 
         switch (data.length) {
@@ -100,7 +100,7 @@ public class TriangleFindingComputation extends BasicComputation<LongWritable,
           // i.e. is the first vertex ID the same as ours?
           if (data[0].get() == vertex.getId().get()) {
             if (!alreadyFound(vertex, data)) {
-              LOG.info("Found triangle " + msg.toString());
+              LOG.trace("Found triangle " + msg.toString());
               // NB - Must create a new instance here as Giraph will reuse
               // the LongArrayWritable to read the next message so we'll
               // lose the discovered answers if we add the original message
@@ -111,7 +111,7 @@ public class TriangleFindingComputation extends BasicComputation<LongWritable,
           break;
         default:
           // Any other size message is invalid and discarded
-          LOG.info("Invalid message " + toString(data));
+          LOG.trace("Invalid message " + toString(data));
         }
       }
     }
@@ -129,7 +129,7 @@ public class TriangleFindingComputation extends BasicComputation<LongWritable,
     NullWritable> vertex, LongWritable[] data) {
     LongArrayArrayListWritable value = vertex.getValue();
 
-    LOG.debug("Checking if triangle " + toString(data) +
+    LOG.trace("Checking if triangle " + toString(data) +
       " is already known at vertex " + vertex.getId());
 
     if (value.size() == 0) {
@@ -144,7 +144,7 @@ public class TriangleFindingComputation extends BasicComputation<LongWritable,
         }
       }
       if (equals == 3) {
-        LOG.debug("Triangle " + toString(data) + " equals triangle " +
+        LOG.trace("Triangle " + toString(data) + " equals triangle " +
           toString(existing) + " already known at vertex " + vertex.getId());
         return true;
       }
@@ -208,7 +208,7 @@ public class TriangleFindingComputation extends BasicComputation<LongWritable,
       = vertex.getEdges().iterator();
     while (iter.hasNext()) {
       Edge<LongWritable, NullWritable> e = iter.next();
-      LOG.info("Sending message " + msg + " from vertex " + vertex.getId() +
+      LOG.trace("Sending message " + msg + " from vertex " + vertex.getId() +
         " to vertex " +
         Long.toString(e.getTargetVertexId().get()));
       sendMessage(e.getTargetVertexId(), msg);
