@@ -1267,8 +1267,8 @@ public class BspServiceMaster<I extends WritableComparable,
         FileStatus[] fileStatusArray =
             getFs().listStatus(new Path(checkpointBasePath),
                 new FinalizedCheckpointPathFilter());
-        if (fileStatusArray == null) {
-          return -1;
+        if (fileStatusArray == null || fileStatusArray.length == 0) {
+          throw new IOException("No good checkpoints available");
         }
         Arrays.sort(fileStatusArray);
         lastCheckpointedSuperstep = getCheckpoint(
