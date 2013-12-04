@@ -66,15 +66,21 @@ public class TriangleFindingComputation
   public void compute(Vertex<LongWritable, LongArrayArrayListWritable,
           NullWritable> vertex,
       Iterable<LongArrayWritable> messages) throws IOException {
+
     if (getSuperstep() == 0) {
       vertex.setValue(new LongArrayArrayListWritable());
 
       // Send initial message to all reachable vertices
-      LOG.debug("Sending initial message from vertex " + vertex.getId());
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("Sending initial message from vertex " + vertex.getId());
+      }
       this.appendAndSend(vertex, new LongWritable[0]);
     } else {
-      LOG.debug("Processing messages at vertex " + vertex.getId() +
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("Processing messages at vertex " + vertex.getId() +
               " in superstep " + getSuperstep());
+      }
+
       Iterator<LongArrayWritable> iter = messages.iterator();
       while (iter.hasNext()) {
         LongArrayWritable msg = iter.next();
@@ -82,13 +88,17 @@ public class TriangleFindingComputation
 
         // Discard messages which contain duplicates
         if (this.hasDuplicate(data)) {
-          LOG.trace("Discarded message " + toString(data) +
+          if (LOG.isTraceEnabled()) {
+            LOG.trace("Discarded message " + toString(data) +
                   " which contained duplicate vertices");
+          }
           continue;
         }
 
-        LOG.trace("Processing message " + toString(data) +
+        if (LOG.isTraceEnabled()) {
+          LOG.trace("Processing message " + toString(data) +
                 " at vertex " + vertex.getId());
+        }
 
         switch (data.length) {
         case 1:
@@ -112,7 +122,9 @@ public class TriangleFindingComputation
           // i.e. is the first vertex ID the same as ours?
           if (data[0].get() == vertex.getId().get()) {
             if (!alreadyFound(vertex, data)) {
-              LOG.trace("Found triangle " + msg.toString());
+              if (LOG.isTraceEnabled()) {
+                LOG.trace("Found triangle " + msg.toString());
+              }
               // NB - Must create a new instance here as Giraph
               // will reuse
               // the LongArrayWritable to read the next message so
@@ -126,7 +138,9 @@ public class TriangleFindingComputation
           break;
         default:
           // Any other size message is invalid and discarded
-          LOG.trace("Invalid message " + toString(data));
+          if (LOG.isTraceEnabled()) {
+            LOG.trace("Invalid message " + toString(data));
+          }
         }
       }
     }
@@ -148,8 +162,10 @@ public class TriangleFindingComputation
           NullWritable> vertex, LongWritable[] data) {
     LongArrayArrayListWritable value = vertex.getValue();
 
-    LOG.trace("Checking if triangle " + toString(data) +
+    if (LOG.isTraceEnabled()) {
+      LOG.trace("Checking if triangle " + toString(data) +
             " is already known at vertex " + vertex.getId());
+    }
 
     if (value.size() == 0) {
       return false;
@@ -163,9 +179,11 @@ public class TriangleFindingComputation
         }
       }
       if (equals == 3) {
-        LOG.trace("Triangle " + toString(data) + " equals triangle " +
-          toString(existing) + " already known at vertex " +
-            vertex.getId());
+        if (LOG.isTraceEnabled()) {
+          LOG.trace("Triangle " + toString(data) + " equals triangle " +
+            toString(existing) + " already known at vertex " +
+              vertex.getId());
+        }
         return true;
       }
     }
@@ -267,9 +285,11 @@ public class TriangleFindingComputation
           NullWritable> vertex, LongWritable[] data,
           Edge<LongWritable, NullWritable> e) {
     LongArrayWritable msg = new LongArrayWritable(data);
-    LOG.trace("Sending message " + msg + " from vertex " +
-      vertex.getId() + " to vertex " +
-      Long.toString(e.getTargetVertexId().get()));
+    if (LOG.isTraceEnabled()) {
+      LOG.trace("Sending message " + msg + " from vertex " +
+        vertex.getId() + " to vertex " +
+        Long.toString(e.getTargetVertexId().get()));
+    }
     this.sendMessage(e.getTargetVertexId(), msg);
   }
 
