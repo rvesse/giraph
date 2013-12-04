@@ -20,9 +20,11 @@ package org.apache.giraph.examples;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -68,6 +70,7 @@ public class TriangleFindingComputation
       Iterable<LongArrayWritable> messages) throws IOException {
 
     if (getSuperstep() == 0) {
+      // Initial super step
       vertex.setValue(new LongArrayArrayListWritable());
 
       // Send initial message to all reachable vertices
@@ -76,9 +79,23 @@ public class TriangleFindingComputation
       }
       this.appendAndSend(vertex, new LongWritable[0]);
     } else {
+      // Subsequent super step
       if (LOG.isDebugEnabled()) {
         LOG.debug("Processing messages at vertex " + vertex.getId() +
               " in superstep " + getSuperstep());
+      }
+
+      // If this is Step 2 prepare the edge lookup cache
+      Map<Long, Edge<LongWritable, NullWritable>> edgeLookup = null;
+      if (getSuperstep() == 2) {
+        edgeLookup = new HashMap<Long, Edge<LongWritable,
+                NullWritable>>();
+        Iterator<Edge<LongWritable, NullWritable>> edgeIter
+          = vertex.getEdges().iterator();
+        while (edgeIter.hasNext()) {
+          Edge<LongWritable, NullWritable> e = edgeIter.next();
+          edgeLookup.put(e.getTargetVertexId().get(), e);
+        }
       }
 
       Iterator<LongArrayWritable> iter = messages.iterator();
@@ -108,32 +125,9 @@ public class TriangleFindingComputation
         case 2:
           // Is there a triangle, we can detect this if any edge
           // corresponds to the first ID in the message
-          Iterator<Edge<LongWritable, NullWritable>> edgeIter
-            = vertex.getEdges().iterator();
-          while (edgeIter.hasNext()) {
-            Edge<LongWritable, NullWritable> e = edgeIter.next();
-            if (e.getTargetVertexId().get() == data[0].get()) {
-              this.appendAndSend(vertex, data, e);
-            }
-          }
-          break;
-        case 3:
-          // Is this an actual triangle ?
-          // i.e. is the first vertex ID the same as ours?
-          if (data[0].get() == vertex.getId().get()) {
-            if (!alreadyFound(vertex, data)) {
-              if (LOG.isTraceEnabled()) {
-                LOG.trace("Found triangle " + msg.toString());
-              }
-              // NB - Must create a new instance here as Giraph
-              // will reuse
-              // the LongArrayWritable to read the next message so
-              // we'll
-              // lose the discovered answers if we add the
-              // original message
-              // reference
-              vertex.getValue().add(new LongArrayWritable(data));
-            }
+          Long first = data[0].get();
+          if (edgeLookup.containsKey(first)) {
+            this.addTriangle(vertex, data);
           }
           break;
         default:
@@ -146,48 +140,6 @@ public class TriangleFindingComputation
     }
 
     vertex.voteToHalt();
-  }
-
-  /**
-   * Determines whether a triangle has already been found
-   *
-   * @param vertex
-   *      Vertex
-   * @param data
-   *      Candidate triangle data
-   * @return True if the given triangle has already been found, false
-   *     otherwise
-   */
-  private boolean alreadyFound(Vertex<LongWritable, LongArrayArrayListWritable,
-          NullWritable> vertex, LongWritable[] data) {
-    LongArrayArrayListWritable value = vertex.getValue();
-
-    if (LOG.isTraceEnabled()) {
-      LOG.trace("Checking if triangle " + toString(data) +
-            " is already known at vertex " + vertex.getId());
-    }
-
-    if (value.size() == 0) {
-      return false;
-    }
-    for (int i = 0; i < value.size(); i++) {
-      LongWritable[] existing = value.get(i).getLongs();
-      int equals = 0;
-      for (int j = 0; j < existing.length; j++) {
-        if (existing[j].get() == data[j].get()) {
-          equals++;
-        }
-      }
-      if (equals == 3) {
-        if (LOG.isTraceEnabled()) {
-          LOG.trace("Triangle " + toString(data) + " equals triangle " +
-            toString(existing) + " already known at vertex " +
-              vertex.getId());
-        }
-        return true;
-      }
-    }
-    return false;
   }
 
   /**
@@ -256,22 +208,24 @@ public class TriangleFindingComputation
   }
 
   /**
-   * Appends the current vertex ID to the given message
-   * and send it to target vertex of the given edge
+   * Adds the current vertex ID to a message and stores it
+   * as a triangle at this vertex
    * @param vertex Vertex
    * @param data Existing message
-   * @param e Edge
    */
-  private void appendAndSend(Vertex<LongWritable, LongArrayArrayListWritable,
-          NullWritable> vertex, LongWritable[] data,
-          Edge<LongWritable, NullWritable> e) {
+  private void addTriangle(Vertex<LongWritable, LongArrayArrayListWritable,
+          NullWritable> vertex, LongWritable[] data) {
     LongWritable[] newData = Arrays.copyOf(data, data.length + 1);
     newData[newData.length - 1] = vertex.getId();
-
     if (this.hasDuplicate(newData)) {
       return;
     }
-    this.send(vertex, newData, e);
+    vertex.getValue().add(new LongArrayWritable(newData));
+
+    if (LOG.isTraceEnabled()) {
+      LOG.trace("Found triangle " + toString(newData) + " at vertex " +
+        vertex.getId());
+    }
   }
 
   /**
