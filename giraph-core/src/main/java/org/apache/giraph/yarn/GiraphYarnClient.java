@@ -113,7 +113,6 @@ public class GiraphYarnClient {
    * @return true if job is successful
    */
   public boolean run(final boolean verbose) throws YarnException, IOException {
-    checkJobLocalZooKeeperSupported();
     // init our connection to YARN ResourceManager RPC
     LOG.info("Running Client");
     yarnClient.start();
@@ -206,7 +205,6 @@ public class GiraphYarnClient {
     final GetNewApplicationResponse cluster) throws YarnException, IOException {
     // are there enough containers to go around for our Giraph job?
     List<NodeReport> nodes = null;
-    int numContainers = 0;
     long totalAvailable = 0;
     try {
       nodes = yarnClient.getNodeReports(NodeState.RUNNING);
@@ -218,18 +216,13 @@ public class GiraphYarnClient {
     for (NodeReport node : nodes) {
       LOG.info("Got node report from ASM for" +
         ", nodeId=" + node.getNodeId() +
-        ", nodeAddress" + node.getHttpAddress() +
-        ", nodeRackName" + node.getRackName() +
-        ", nodeNumContainers" + node.getNumContainers());
-      numContainers += node.getNumContainers();
+        ", nodeAddress " + node.getHttpAddress() +
+        ", nodeRackName " + node.getRackName() +
+        ", nodeNumContainers " + node.getNumContainers());
       totalAvailable += node.getCapability().getMemory();
     }
     // 1 master + all workers in -w command line arg
     final int workers = giraphConf.getMaxWorkers() + 1;
-    if (workers < numContainers) {
-      throw new RuntimeException("Giraph job requires " + workers +
-        " containers to run; cluster only hosts " + numContainers);
-    }
     checkAndAdjustPerTaskHeapSize(cluster);
     final long totalAsk =
       giraphConf.getYarnTaskHeapMb() * workers;

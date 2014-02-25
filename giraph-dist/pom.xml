@@ -31,6 +31,23 @@
   <packaging>pom</packaging>
   <name>Apache Giraph Distribution</name>
 
+  <profiles>
+    <profile>
+      <id>release</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.rat</groupId>
+            <artifactId>apache-rat-plugin</artifactId>
+            <configuration>
+              <basedir>${project.basedir}/../</basedir>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+
   <build>
     <plugins>
       <plugin>
@@ -55,6 +72,7 @@
               <finalName>giraph-${project.version}-${forHadoop}</finalName>
               <descriptors>
                 <descriptor>src/main/assembly/bin.xml</descriptor>
+                <descriptor>src/main/assembly/src.xml</descriptor>
               </descriptors>
               <tarLongFileMode>gnu</tarLongFileMode>
             </configuration>
@@ -79,10 +97,6 @@
     </dependency>
     <dependency>
       <groupId>org.apache.giraph</groupId>
-      <artifactId>giraph-rexster</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.giraph</groupId>
       <artifactId>giraph-hcatalog</artifactId>
     </dependency>
     <dependency>
@@ -92,6 +106,24 @@
     <dependency>
       <groupId>org.apache.giraph</groupId>
       <artifactId>giraph-examples</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.giraph</groupId>
+      <artifactId>giraph-gora</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.giraph</groupId>
+      <artifactId>giraph-kibble</artifactId>
+      <exclusions>
+        <exclusion>
+          <groupId>javax.servlet</groupId>
+          <artifactId>javax.servlet-api</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.giraph</groupId>
+      <artifactId>giraph-rexster-io</artifactId>
     </dependency>
   </dependencies>
 </project>

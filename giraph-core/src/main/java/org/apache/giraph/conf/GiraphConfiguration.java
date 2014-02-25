@@ -47,6 +47,10 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.net.DNS;
 
+import io.netty.buffer.ByteBufAllocator;
+import io.netty.buffer.PooledByteBufAllocator;
+import io.netty.buffer.UnpooledByteBufAllocator;
+
 import java.net.UnknownHostException;
 
 /**
@@ -59,6 +63,9 @@ import java.net.UnknownHostException;
  */
 public class GiraphConfiguration extends Configuration
     implements GiraphConstants {
+  /** ByteBufAllocator to be used by netty */
+  private ByteBufAllocator nettyBufferAllocator = null;
+
   /**
    * Constructor that creates the configuration
    */
@@ -625,7 +632,7 @@ public class GiraphConfiguration extends Configuration
    *        (i.e. zk1:2221,zk2:2221)
    */
   public final void setZooKeeperConfiguration(String serverList) {
-    set(ZOOKEEPER_LIST, serverList);
+    ZOOKEEPER_LIST.set(this, serverList);
   }
 
   /**
@@ -728,7 +735,7 @@ public class GiraphConfiguration extends Configuration
    * @return ZooKeeper list of strings, comma separated or null if none set.
    */
   public String getZookeeperList() {
-    return get(ZOOKEEPER_LIST);
+    return ZOOKEEPER_LIST.get(this);
   }
 
   /**
@@ -739,7 +746,7 @@ public class GiraphConfiguration extends Configuration
    * @param zkList list of strings, comma separated of zookeeper servers
    */
   public void setZookeeperList(String zkList) {
-    set(ZOOKEEPER_LIST, zkList);
+    ZOOKEEPER_LIST.set(this, zkList);
     ZOOKEEPER_IS_EXTERNAL.set(this, false);
   }
 
@@ -793,15 +800,6 @@ public class GiraphConfiguration extends Configuration
     return ZOOKEEPER_SERVER_COUNT.get(this);
   }
 
-  /**
-   * Set the ZooKeeper jar classpath
-   *
-   * @param classPath Classpath for the ZooKeeper jar
-   */
-  public void setZooKeeperJar(String classPath) {
-    set(ZOOKEEPER_JAR, classPath);
-  }
-
   public int getZooKeeperSessionTimeout() {
     return ZOOKEEPER_SESSION_TIMEOUT.get(this);
   }
@@ -838,6 +836,25 @@ public class GiraphConfiguration extends Configuration
     } else {
       return getNettyServerThreads();
     }
+  }
+
+  /**
+   * Used by netty client and server to create ByteBufAllocator
+   *
+   * @return ByteBufAllocator
+   */
+  public ByteBufAllocator getNettyAllocator() {
+    if (nettyBufferAllocator == null) {
+      if (NETTY_USE_POOLED_ALLOCATOR.get(this)) { // Use pooled allocator
+        nettyBufferAllocator = new PooledByteBufAllocator(
+            NETTY_USE_DIRECT_MEMORY.get(this));
+      } else { // Use un-pooled allocator
+        // Note: Current default settings create un-pooled heap allocator
+        nettyBufferAllocator = new UnpooledByteBufAllocator(
+            NETTY_USE_DIRECT_MEMORY.get(this));
+      }
+    }
+    return nettyBufferAllocator;
   }
 
   public int getZookeeperConnectionAttempts() {
@@ -1160,5 +1177,50 @@ public class GiraphConfiguration extends Configuration
    */
   public boolean isOneToAllMsgSendingEnabled() {
     return ONE_TO_ALL_MSG_SENDING.isTrue(this);
+  }
+
+  /**
+   * Get option whether to create a source vertex present only in edge input
+   * @return CREATE_EDGE_SOURCE_VERTICES option
+   */
+  public boolean getCreateSourceVertex() {
+    return CREATE_EDGE_SOURCE_VERTICES.get(this);
+  }
+
+  /**
+   * set option whether to create a source vertex present only in edge input
+   * @param createVertex create source vertex option
+   */
+  public void setCreateSourceVertex(boolean createVertex) {
+    CREATE_EDGE_SOURCE_VERTICES.set(this, createVertex);
+  }
+
+  /**
+   * Get the maximum timeout (in milliseconds) for waiting for all tasks
+   * to complete after the job is done.
+   *
+   * @return Wait task done timeout in milliseconds.
+   */
+  public int getWaitTaskDoneTimeoutMs() {
+    return WAIT_TASK_DONE_TIMEOUT_MS.get(this);
+  }
+
+  /**
+   * Set the maximum timeout (in milliseconds) for waiting for all tasks
+   * to complete after the job is done.
+   *
+   * @param ms Milliseconds to set
+   */
+  public void setWaitTaskDoneTimeoutMs(int ms) {
+    WAIT_TASK_DONE_TIMEOUT_MS.set(this, ms);
+  }
+
+  /**
+   * Check whether to track job progress on client or not
+   *
+   * @return True if job progress should be tracked on client
+   */
+  public boolean trackJobProgressOnClient() {
+    return TRACK_JOB_PROGRESS_ON_CLIENT.get(this);
   }
 }

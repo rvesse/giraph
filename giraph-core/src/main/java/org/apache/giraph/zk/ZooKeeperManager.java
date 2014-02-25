@@ -18,9 +18,14 @@
 
 package org.apache.giraph.zk;
 
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.common.io.Closeables;
 import org.apache.commons.io.FileUtils;
 import org.apache.giraph.conf.GiraphConstants;
 import org.apache.giraph.conf.ImmutableClassesGiraphConfiguration;
+import org.apache.giraph.time.SystemTime;
+import org.apache.giraph.time.Time;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -29,10 +34,6 @@ import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.apache.zookeeper.server.quorum.QuorumPeerMain;
-
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import com.google.common.io.Closeables;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -68,8 +69,6 @@ public class ZooKeeperManager {
   /** The ZooKeeperString filename prefix */
   private static final String ZOOKEEPER_SERVER_LIST_FILE_PREFIX =
       "zkServerList_";
-  /** Denotes that the computation is done for a partition */
-  private static final String COMPUTATION_DONE_SUFFIX = ".COMPUTATION_DONE";
   /** Job context (mainly for progress) */
   private Mapper<?, ?, ?, ?>.Context context;
   /** Hadoop configuration */
@@ -119,6 +118,8 @@ public class ZooKeeperManager {
    * files will go)
    */
   private final String zkDirDefault;
+  /** Time object for tracking timeouts */
+  private final Time time = SystemTime.get();
 
   /** State of the application */
   public enum State {
@@ -150,8 +151,7 @@ public class ZooKeeperManager {
     serverDirectory = new Path(baseDirectory,
         "_zkServer");
     myClosedPath = new Path(taskDirectory,
-        Integer.toString(taskPartition) +
-        COMPUTATION_DONE_SUFFIX);
+        (new ComputationDoneName(taskPartition)).getName());
     pollMsecs = GiraphConstants.ZOOKEEPER_SERVERLIST_POLL_MSECS.get(conf);
     serverCount = GiraphConstants.ZOOKEEPER_SERVER_COUNT.get(conf);
     String jobLocalDir = conf.get("job.local.dir");
@@ -624,8 +624,7 @@ public class ZooKeeperManager {
         LOG.warn("onlineZooKeeperServers: Failed to delete " +
             "directory " + this.zkDir, e);
       }
-      generateZooKeeperConfigFile(
-          new ArrayList<String>(zkServerPortMap.keySet()));
+      generateZooKeeperConfigFile(new ArrayList<>(zkServerPortMap.keySet()));
       ProcessBuilder processBuilder = new ProcessBuilder();
       List<String> commandList = Lists.newArrayList();
       String javaHome = System.getProperty("java.home");
@@ -634,14 +633,13 @@ public class ZooKeeperManager {
             "onlineZooKeeperServers: java.home is not set!");
       }
       commandList.add(javaHome + "/bin/java");
+      commandList.add("-cp");
+      commandList.add(System.getProperty("java.class.path"));
       String zkJavaOptsString = GiraphConstants.ZOOKEEPER_JAVA_OPTS.get(conf);
       String[] zkJavaOptsArray = zkJavaOptsString.split(" ");
       if (zkJavaOptsArray != null) {
         commandList.addAll(Arrays.asList(zkJavaOptsArray));
       }
-      commandList.add("-cp");
-      Path fullJarPath = new Path(conf.get(GiraphConstants.ZOOKEEPER_JAR));
-      commandList.add(fullJarPath.toString());
       commandList.add(QuorumPeerMain.class.getName());
       commandList.add(configFilePath);
       processBuilder.command(commandList);
@@ -752,7 +750,7 @@ public class ZooKeeperManager {
             "task failed) to create filestamp " + myReadyPath, e);
       }
     } else {
-      List<String> foundList = new ArrayList<String>();
+      List<String> foundList = new ArrayList<>();
       int readyRetrievalAttempt = 0;
       while (true) {
         try {
@@ -807,34 +805,50 @@ public class ZooKeeperManager {
   }
 
   /**
-   * Wait for all map tasks to signal completion.
+   * Wait for all workers to signal completion.  Will wait up to
+   * WAIT_TASK_DONE_TIMEOUT_MS milliseconds for this to complete before
+   * reporting an error.
    *
-   * @param totalMapTasks Number of map tasks to wait for
+   * @param totalWorkers Number of workers to wait for
    */
-  private void waitUntilAllTasksDone(int totalMapTasks) {
+  private void waitUntilAllTasksDone(int totalWorkers) {
     int attempt = 0;
+    long maxMs = time.getMilliseconds() +
+        conf.getWaitTaskDoneTimeoutMs();
     while (true) {
+      boolean[] taskDoneArray = new boolean[totalWorkers];
       try {
         FileStatus [] fileStatusArray =
             fs.listStatus(taskDirectory);
         int totalDone = 0;
         if (fileStatusArray.length > 0) {
-          for (int i = 0; i < fileStatusArray.length; ++i) {
-            if (fileStatusArray[i].getPath().getName().endsWith(
-                COMPUTATION_DONE_SUFFIX)) {
+          for (FileStatus fileStatus : fileStatusArray) {
+            String name = fileStatus.getPath().getName();
+            if (ComputationDoneName.isName(name)) {
               ++totalDone;
+              taskDoneArray[ComputationDoneName.fromName(
+                  name).getWorkerId()] = true;
             }
           }
         }
         if (LOG.isInfoEnabled()) {
           LOG.info("waitUntilAllTasksDone: Got " + totalDone +
-              " and " + totalMapTasks +
+              " and " + totalWorkers +
               " desired (polling period is " +
               pollMsecs + ") on attempt " +
               attempt);
         }
-        if (totalDone >= totalMapTasks) {
+        if (totalDone >= totalWorkers) {
           break;
+        } else {
+          StringBuilder sb = new StringBuilder();
+          for (int i = 0; i < taskDoneArray.length; ++i) {
+            if (!taskDoneArray[i]) {
+              sb.append(i).append(", ");
+            }
+          }
+          LOG.info("waitUntilAllTasksDone: Still waiting on tasks " +
+              sb.toString());
         }
         ++attempt;
         Thread.sleep(pollMsecs);
@@ -843,6 +857,12 @@ public class ZooKeeperManager {
         LOG.warn("waitUntilAllTasksDone: Got IOException.", e);
       } catch (InterruptedException e) {
         LOG.warn("waitUntilAllTasksDone: Got InterruptedException", e);
+      }
+
+      if (time.getMilliseconds() > maxMs) {
+        throw new IllegalStateException("waitUntilAllTasksDone: Tasks " +
+            "did not finish by the maximum time of " +
+            conf.getWaitTaskDoneTimeoutMs() + " milliseconds");
       }
     }
   }
@@ -861,8 +881,15 @@ public class ZooKeeperManager {
     }
     synchronized (this) {
       if (zkProcess != null) {
-        int totalMapTasks = conf.getMapTasks();
-        waitUntilAllTasksDone(totalMapTasks);
+        boolean isYarnJob = GiraphConstants.IS_PURE_YARN_JOB.get(conf);
+        int totalWorkers = conf.getMapTasks();
+        // A Yarn job always spawns MAX_WORKERS + 1 containers
+        if (isYarnJob) {
+          totalWorkers = conf.getInt(GiraphConstants.MAX_WORKERS, 0) + 1;
+        }
+        LOG.info("offlineZooKeeperServers: Will wait for " +
+            totalWorkers + " tasks");
+        waitUntilAllTasksDone(totalWorkers);
         zkProcess.destroy();
         int exitValue = -1;
         File zkDirFile;

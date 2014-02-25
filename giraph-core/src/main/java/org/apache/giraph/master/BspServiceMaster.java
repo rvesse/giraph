@@ -187,15 +187,13 @@ public class BspServiceMaster<I extends WritableComparable,
   /**
    * Constructor for setting up the master.
    *
-   * @param sessionMsecTimeout Msecs to timeout connecting to ZooKeeper
    * @param context Mapper context
    * @param graphTaskManager GraphTaskManager for this compute node
    */
   public BspServiceMaster(
-      int sessionMsecTimeout,
       Mapper<?, ?, ?, ?>.Context context,
       GraphTaskManager<I, V, E> graphTaskManager) {
-    super(sessionMsecTimeout, context, graphTaskManager);
+    super(context, graphTaskManager);
     workerWroteCheckpoint = new PredicateLock(context);
     registerBspEvent(workerWroteCheckpoint);
     superstepStateChanged = new PredicateLock(context);
@@ -461,14 +459,8 @@ public class BspServiceMaster<I extends WritableComparable,
     }
   }
 
-  /**
-   * Check all the {@link WorkerInfo} objects to ensure that a minimum
-   * number of good workers exists out of the total that have reported.
-   *
-   * @return List of of healthy workers such that the minimum has been
-   *         met, otherwise null
-   */
-  private List<WorkerInfo> checkWorkers() {
+  @Override
+  public List<WorkerInfo> checkWorkers() {
     boolean failJob = true;
     long failWorkerCheckMsecs =
         SystemTime.get().getMilliseconds() + maxSuperstepWaitMsecs;
@@ -1725,6 +1717,10 @@ public class BspServiceMaster<I extends WritableComparable,
         GraphFunctions.ALL_EXCEPT_ZOOKEEPER)) {
       maxTasks *= 2;
     }
+    if (getConfiguration().trackJobProgressOnClient()) {
+      // For job client
+      maxTasks++;
+    }
     List<String> cleanedUpChildrenList = null;
     while (true) {
       try {
@@ -1970,6 +1966,9 @@ public class BspServiceMaster<I extends WritableComparable,
     gs.getEdges().setValue(globalStats.getEdgeCount());
     gs.getSentMessages().setValue(globalStats.getMessageCount());
     gs.getSentMessageBytes().setValue(globalStats.getMessageBytesCount());
+    gs.getAggregateSentMessages().increment(globalStats.getMessageCount());
+    gs.getAggregateSentMessageBytes()
+      .increment(globalStats.getMessageBytesCount());
   }
 
   /**

@@ -85,6 +85,18 @@ under the License.
   <profiles>
     <profile>
       <id>hadoop_0.20.203</id>
+      <dependencies>
+        <dependency>
+          <groupId>org.apache.hadoop</groupId>
+          <artifactId>hadoop-test</artifactId>
+          <version>${hadoop.version}</version>
+          <scope>test</scope>
+        </dependency>
+      </dependencies>
+    </profile>
+
+    <profile>
+      <id>hadoop_1</id>
       <activation>
         <activeByDefault>true</activeByDefault>
       </activation>
@@ -99,11 +111,11 @@ under the License.
     </profile>
 
     <profile>
-      <id>hadoop_1.0</id>
+      <id>hadoop_2</id>
       <dependencies>
         <dependency>
           <groupId>org.apache.hadoop</groupId>
-          <artifactId>hadoop-test</artifactId>
+          <artifactId>hadoop-minicluster</artifactId>
           <version>${hadoop.version}</version>
           <scope>test</scope>
         </dependency>
@@ -128,6 +140,12 @@ under the License.
         <dependency>
           <groupId>com.facebook.hadoop</groupId>
           <artifactId>hadoop-test</artifactId>
+          <scope>test</scope>
+        </dependency>
+        <dependency>
+          <groupId>org.jboss.netty</groupId>
+          <artifactId>netty</artifactId>
+          <version>${dep.oldnetty.version}</version>
           <scope>test</scope>
         </dependency>
       </dependencies>
@@ -173,6 +191,13 @@ under the License.
     <dependency>
       <groupId>org.apache.thrift</groupId>
       <artifactId>libthrift</artifactId>
+      <scope>runtime</scope>
+    </dependency>
+
+    <!-- runtime dependency -->
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
       <scope>runtime</scope>
     </dependency>
 

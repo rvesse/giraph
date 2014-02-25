@@ -45,6 +45,7 @@ import org.apache.giraph.worker.BspServiceWorker;
 import org.apache.giraph.worker.InputSplitsCallable;
 import org.apache.giraph.worker.WorkerContext;
 import org.apache.giraph.worker.WorkerObserver;
+import org.apache.giraph.worker.WorkerProgress;
 import org.apache.giraph.zk.ZooKeeperManager;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
@@ -172,6 +173,19 @@ public class GraphTaskManager<I extends WritableComparable, V extends Writable,
   }
 
   /**
+   * In order for job client to know which ZooKeeper the job is using,
+   * we create a counter with server:port as its name inside of
+   * ZOOKEEPER_SERVER_PORT_COUNTER_GROUP.
+   *
+   * @param serverPortList Server:port list for ZooKeeper used
+   */
+  private void createZooKeeperCounter(String serverPortList) {
+    // Getting the counter will actually create it.
+    context.getCounter(GiraphConstants.ZOOKEEPER_SERVER_PORT_COUNTER_GROUP,
+        serverPortList);
+  }
+
+  /**
    * Called by owner of this GraphTaskManager on each compute node
    *
    * @param zkPathList the path to the ZK jars we need to run the job
@@ -197,10 +211,13 @@ public class GraphTaskManager<I extends WritableComparable, V extends Writable,
     conf.createComputationFactory().initialize(conf);
     // Do some task setup (possibly starting up a Zookeeper service)
     context.setStatus("setup: Initializing Zookeeper services.");
-    locateZookeeperClasspath(zkPathList);
     String serverPortList = conf.getZookeeperList();
-    if (serverPortList == null && startZooKeeperManager()) {
-      return; // ZK connect/startup failed
+    if (serverPortList.isEmpty()) {
+      if (startZooKeeperManager()) {
+        return; // ZK connect/startup failed
+      }
+    } else {
+      createZooKeeperCounter(serverPortList);
     }
     if (zkManager != null && zkManager.runsZooKeeper()) {
       if (LOG.isInfoEnabled()) {
@@ -215,9 +232,8 @@ public class GraphTaskManager<I extends WritableComparable, V extends Writable,
       Thread.sleep(GiraphConstants.DEFAULT_ZOOKEEPER_INIT_LIMIT *
         GiraphConstants.DEFAULT_ZOOKEEPER_TICK_TIME);
     }
-    int sessionMsecTimeout = conf.getZooKeeperSessionTimeout();
     try {
-      instantiateBspService(sessionMsecTimeout);
+      instantiateBspService();
     } catch (IOException e) {
       LOG.error("setup: Caught exception just before end of setup", e);
       if (zkManager != null) {
@@ -369,8 +385,7 @@ public class GraphTaskManager<I extends WritableComparable, V extends Writable,
     zkManager.onlineZooKeeperServers();
     String serverPortList = zkManager.getZooKeeperServerPortString();
     conf.setZookeeperList(serverPortList);
-    context.getCounter(GiraphConstants.ZOOKEEPER_SERVER_PORT_COUNTER_GROUP,
-        serverPortList);
+    createZooKeeperCounter(serverPortList);
     return false;
   }
 
@@ -394,8 +409,12 @@ public class GraphTaskManager<I extends WritableComparable, V extends Writable,
   private FinishedSuperstepStats completeSuperstepAndCollectStats(
     List<PartitionStats> partitionStatsList,
     GiraphTimerContext superstepTimerContext) {
-    finishedSuperstepStats = serviceWorker.finishSuperstep(partitionStatsList);
-    superstepTimerContext.stop();
+
+    // the superstep timer is stopped inside the finishSuperstep function
+    // (otherwise metrics are not available at the end of the computation
+    //  using giraph.metrics.enable=true).
+    finishedSuperstepStats =
+      serviceWorker.finishSuperstep(partitionStatsList, superstepTimerContext);
     if (conf.metricsEnabled()) {
       GiraphMetrics.get().perSuperstep().printSummary(System.err);
     }
@@ -537,17 +556,15 @@ public class GraphTaskManager<I extends WritableComparable, V extends Writable,
   /**
    * Instantiate the appropriate BspService object (Master or Worker)
    * for this compute node.
-   * @param sessionMsecTimeout configurable session timeout
    */
-  private void instantiateBspService(int sessionMsecTimeout)
+  private void instantiateBspService()
     throws IOException, InterruptedException {
     if (graphFunctions.isMaster()) {
       if (LOG.isInfoEnabled()) {
         LOG.info("setup: Starting up BspServiceMaster " +
           "(master thread)...");
       }
-      serviceMaster = new BspServiceMaster<I, V, E>(
-        sessionMsecTimeout, context, this);
+      serviceMaster = new BspServiceMaster<I, V, E>(context, this);
       masterThread = new MasterThread<I, V, E>(serviceMaster, context);
       masterThread.start();
     }
@@ -555,50 +572,11 @@ public class GraphTaskManager<I extends WritableComparable, V extends Writable,
       if (LOG.isInfoEnabled()) {
         LOG.info("setup: Starting up BspServiceWorker...");
       }
-      serviceWorker = new BspServiceWorker<I, V, E>(
-        sessionMsecTimeout, context, this);
+      serviceWorker = new BspServiceWorker<I, V, E>(context, this);
       if (LOG.isInfoEnabled()) {
         LOG.info("setup: Registering health of this worker...");
       }
     }
-  }
-
-  /**
-   * Attempt to locate the local copies of the ZK jar files, assuming
-   * the underlying cluster framework has provided them for us.
-   * @param fileClassPaths the path to the ZK jars on the local cluster.
-   */
-  private void locateZookeeperClasspath(Path[] fileClassPaths)
-    throws IOException {
-    String zkClasspath = null;
-    if (fileClassPaths == null) {
-      if (LOG.isInfoEnabled()) {
-        LOG.info("Distributed cache is empty. Assuming fatjar.");
-      }
-      String jarFile = context.getJar();
-      if (jarFile == null) {
-        jarFile = findContainingJar(getClass());
-      }
-      // Pure YARN profiles will use unpacked resources, so calls
-      // to "findContainingJar()" in that context can return NULL!
-      zkClasspath = null == jarFile ?
-          "./*" : jarFile.replaceFirst("file:", "");
-    } else {
-      StringBuilder sb = new StringBuilder();
-      sb.append(fileClassPaths[0]);
-
-      for (int i = 1; i < fileClassPaths.length; i++) {
-        sb.append(":");
-        sb.append(fileClassPaths[i]);
-      }
-      zkClasspath = sb.toString();
-    }
-
-    if (LOG.isInfoEnabled()) {
-      LOG.info("setup: classpath @ " + zkClasspath + " for job " +
-          context.getJobName());
-    }
-    conf.setZooKeeperJar(zkClasspath);
   }
 
   /**
@@ -711,10 +689,18 @@ public class GraphTaskManager<I extends WritableComparable, V extends Writable,
       int numThreads) {
     final BlockingQueue<Integer> computePartitionIdQueue =
       new ArrayBlockingQueue<Integer>(numPartitions);
+    long verticesToCompute = 0;
     for (Integer partitionId :
       serviceWorker.getPartitionStore().getPartitionIds()) {
       computePartitionIdQueue.add(partitionId);
+      verticesToCompute +=
+          serviceWorker.getPartitionStore().getOrCreatePartition(
+              partitionId).getVertexCount();
     }
+    WorkerProgress.get().startSuperstep(
+        serviceWorker.getSuperstep(),
+        verticesToCompute,
+        serviceWorker.getPartitionStore().getNumPartitions());
 
     GiraphTimerContext computeAllTimerContext = computeAll.time();
     timeToFirstMessageTimerContext = timeToFirstMessage.time();
@@ -859,14 +845,29 @@ public class GraphTaskManager<I extends WritableComparable, V extends Writable,
     try {
       if (masterThread != null) {
         masterThread.join();
+        LOG.info("cleanup: Joined with master thread");
       }
     } catch (InterruptedException e) {
       // cleanup phase -- just log the error
       LOG.error("cleanup: Master thread couldn't join");
     }
     if (zkManager != null) {
-      zkManager.offlineZooKeeperServers(ZooKeeperManager.State.FINISHED);
+      LOG.info("cleanup: Offlining ZooKeeper servers");
+      try {
+        zkManager.offlineZooKeeperServers(ZooKeeperManager.State.FINISHED);
+      // We need this here cause apparently exceptions are eaten by Hadoop
+      // when they come from the cleanup lifecycle and it's useful to know
+      // if something is wrong.
+      //
+      // And since it's cleanup nothing too bad should happen if we don't
+      // propagate and just allow the job to finish normally.
+      // CHECKSTYLE: stop IllegalCatch
+      } catch (Throwable e) {
+      // CHECKSTYLE: resume IllegalCatch
+        LOG.error("cleanup: Error offlining zookeeper", e);
+      }
     }
+
     // Stop tracking metrics
     GiraphMetrics.get().shutdown();
   }

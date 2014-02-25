@@ -1,6 +1,83 @@
 Giraph Change Log
 
 Release 1.1.0 - unreleased
+  GIRAPH-858: tests fail for hadoop_facebook because of dependency issues
+  (pavanka via aching)
+
+  GIRAPH-814: Incorrect MapReduce application classpath processing (AlexJF via claudio)
+
+  GIRAPH-850: Improve internal zookeeper launching (AlexJF via claudio)
+
+  GIRAPH-855: RecordReaderWrapper swallows exceptions (aching)
+
+  GIRAPH-848: Allowing plain computation with types being configurable (ikabiljo via majakabiljo)
+
+  GIRAPH-854: fix for test fail due to GIRAPH-840 (pavanka via majakabiljo)
+
+  GIRAPH-853: Fix concurrency issue in GiraphMetrics (majakabiljo)
+
+  GIRAPH-840: Upgrade to netty 4 (pavanka via majakabiljo)
+
+  GIRAPH-816: ByteArrayPartition not combining vertex edges (cmuchins via majakabiljo)
+
+  GIRAPH-844: TextInputFormat for SimpleShortestPaths (ssc)
+
+  GIRAPH-841: fix missing munge symbols error for non-munge-using profiles (Eugene Koontz via rvs)
+
+  GIRAPH-794: add support for generic hadoop1 and hadoop2 profiles (rvs)
+
+  GIRAPH-833: Upgrade to ZooKeeper 3.4.5 (aching)
+
+  GIRAPH-836: Delay hive preparation until after the arguments are parsed (this allows 
+  functionality such as creating a table) (aching)
+
+  GIRAPH-843: remove rexter from hadoop_facebook profile (pavanka via aching)
+
+  GIRAPH-838: setup time & total time counter also include time spent waiting for machines
+  (pavanka via majakabiljo)
+
+  GIRAPH-839: NettyWorkerAggregatorRequestProcessor tries to reuse request objects 
+  (pavanka via majakabiljo)
+
+  GIRAPH-835: org.apache.giraph.hive.input.CheckInputTest Fails because JobProgressTracker
+  doesn't check null (akila via majakabiljo)
+
+  GIRAPH-834: Metrcis missing superstep time (armax00 via claudio)
+
+  GIRAPH-819: Number of Containers Required for a Job (Rafal Wojdyla via ereisman)
+
+  GIRAPH-832: Test don't finish after GIRAPH-792 (majakabiljo)
+
+  GIRAPH-792: Print job progress to command line (majakabiljo)
+
+  GIRAPH-831: waitUntilAllTasksDone waits forever (without debug information) (aching)
+
+  GIRAPH-830: directMemory used in netty message (pavanka via aching)
+
+  GIRAPH-829: Compilation error due to wrong rexster jar file (armax00 via claudio)
+
+  GIRAPH-803: Rexster I/O new complete API (armax00 via claudio)
+
+  GIRAPH-805: getZookeeperList can return null (armax00 via claudio)
+
+  GIRAPH-823: upgrade hiveio to version 0.21 from olderversion 0.20 (pavanka via majakabiljo)
+
+  GIRAPH-724: UnsafeByteArrayOutputStream.writeUTF should call ensureSize (yhdong via majakabiljo)
+
+  GIRAPH-821: proper handling of NegativeArraySizeException for all ByteArray backed
+  messagestores (pavanka via majakabiljo)
+
+  GIRAPH-820: add a configuration option to skip creating source vertices present only 
+  in edge input (pavanka via majakabiljo)
+
+  GIRAPH-742: Worker task finishSuperstep status reporting the wrong superstep number
+  (cmuchins via majakabiljo)
+
+  GIRAPH-810: Giraph should track aggregate statistics over lifetime of the computation
+  (rvesse via majakabiljo)
+
+  GIRAPH-785: Improve GraphPartitionerFactory usage (ikabiljo via majakabiljo)
+
   GIRAPH-815: Exclude dependency and duplicate finder checks to profile we do not check (aching)
 
   GIRAPH-798: Upgrade Giraph to Java7 and fix all dependencies (aching)

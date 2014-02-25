@@ -408,7 +408,12 @@ public interface GiraphConstants {
    *  zookeeper, this parameter will updated the configuration with the corrent
    *  configuration value.
    */
-  String ZOOKEEPER_LIST = "giraph.zkList";
+  StrConfOption ZOOKEEPER_LIST =
+      new StrConfOption("giraph.zkList", "",
+          "ZooKeeper comma-separated list (if not set, will start up " +
+          "ZooKeeper locally). Consider that after locally-starting " +
+          "zookeeper, this parameter will updated the configuration with " +
+          "the corrent configuration value.");
 
   /**
    * Zookeeper List will always hold a value during the computation while
@@ -441,9 +446,6 @@ public interface GiraphConstants {
   IntConfOption ZOOKEEPER_SERVER_PORT =
       new IntConfOption("giraph.zkServerPort", 22181, "ZooKeeper port to use");
 
-  /** Location of the ZooKeeper jar - Used internally, not meant for users */
-  String ZOOKEEPER_JAR = "giraph.zkJar";
-
   /** Local ZooKeeper directory to use */
   String ZOOKEEPER_DIR = "giraph.zkDir";
 
@@ -463,6 +465,16 @@ public interface GiraphConstants {
   /** TCP backlog (defaults to number of workers) */
   IntConfOption TCP_BACKLOG = new IntConfOption("giraph.tcpBacklog", 1,
       "TCP backlog (defaults to number of workers)");
+
+  /** Use netty pooled memory buffer allocator */
+  BooleanConfOption NETTY_USE_POOLED_ALLOCATOR = new BooleanConfOption(
+      "giraph.useNettyPooledAllocator", false, "Should netty use pooled " +
+      "memory allocator?");
+
+  /** Use direct memory buffers in netty */
+  BooleanConfOption NETTY_USE_DIRECT_MEMORY = new BooleanConfOption(
+      "giraph.useNettyDirectMemory", false, "Should netty use direct " +
+      "memory buffers");
 
   /** How big to make the encoder buffer? */
   IntConfOption NETTY_REQUEST_ENCODER_BUFFER_SIZE =
@@ -497,7 +509,7 @@ public interface GiraphConstants {
   /** Where to place the netty client execution handle? */
   StrConfOption NETTY_CLIENT_EXECUTION_AFTER_HANDLER =
       new StrConfOption("giraph.nettyClientExecutionAfterHandler",
-          "requestEncoder",
+          "request-encoder",
           "Where to place the netty client execution handle?");
 
   /** Use the execution handler in netty on the server? */
@@ -970,6 +982,15 @@ public interface GiraphConstants {
         "one-to-all message sending strategy");
 
   /**
+   * This option can be used to specify if a source vertex present in edge
+   * input but not in vertex input can be created
+   */
+  BooleanConfOption CREATE_EDGE_SOURCE_VERTICES =
+      new BooleanConfOption("giraph.createEdgeSourceVertices", true,
+          "Create a source vertex if present in edge input but not " +
+          "necessarily in vertex input");
+
+  /**
    * This counter group will contain one counter whose name is the ZooKeeper
    * server:port which this job is using
    */
@@ -982,6 +1003,12 @@ public interface GiraphConstants {
   String ZOOKEEPER_HALT_NODE_COUNTER_GROUP = "Zookeeper halt node";
 
   /**
+   * This counter group will contain one counter whose name is the ZooKeeper
+   * node path which contains all data about this job
+   */
+  String ZOOKEEPER_BASE_PATH_COUNTER_GROUP = "Zookeeper base path";
+
+  /**
    * Which class to use to write instructions on how to halt the application
    */
   ClassConfOption<HaltApplicationUtils.HaltInstructionsWriter>
@@ -990,5 +1017,19 @@ public interface GiraphConstants {
       HaltApplicationUtils.DefaultHaltInstructionsWriter.class,
       HaltApplicationUtils.HaltInstructionsWriter.class,
       "Class used to write instructions on how to halt the application");
+
+  /**
+   * Maximum timeout (in milliseconds) for waiting for all tasks
+   * to complete after the job is done.  Defaults to 15 minutes.
+   */
+  IntConfOption WAIT_TASK_DONE_TIMEOUT_MS =
+      new IntConfOption("giraph.waitTaskDoneTimeoutMs", MINUTES.toMillis(15),
+          "Maximum timeout (in ms) for waiting for all all tasks to " +
+              "complete");
+
+  /** Whether to track job progress on client or not */
+  BooleanConfOption TRACK_JOB_PROGRESS_ON_CLIENT =
+      new BooleanConfOption("giraph.trackJobProgressOnClient", true,
+          "Whether to track job progress on client or not");
 }
 // CHECKSTYLE: resume InterfaceIsTypeCheck

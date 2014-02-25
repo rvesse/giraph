@@ -45,6 +45,7 @@ public class LongDoubleDoubleTextInputFormat
     DoubleWritable>
     implements ImmutableClassesGiraphConfigurable<LongWritable, DoubleWritable,
     DoubleWritable> {
+
   /** Configuration. */
   private ImmutableClassesGiraphConfiguration<LongWritable, DoubleWritable,
       DoubleWritable> conf;
